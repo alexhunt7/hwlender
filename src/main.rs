@@ -1,4 +1,6 @@
 use std::fs::File;
+use std::net::SocketAddr;
+use std::sync::{Arc, RwLock};
 
 use futures_util::TryStreamExt;
 use hyper::service::{make_service_fn, service_fn};
@@ -6,8 +8,6 @@ use hyper::{Body, Method, Request, Response, Server, StatusCode};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json;
-use std::net::SocketAddr;
-use std::sync::{Arc, RwLock};
 
 #[derive(Serialize, Deserialize)]
 struct NetworkInterface {
@@ -32,9 +32,11 @@ enum Status {
 }
 
 #[derive(Serialize, Deserialize)]
-struct MyObj {
-    name: String,
-    id: u32,
+struct Payload {
+    kernel: String,
+    initrd: Vec<String>,
+    cmdline: String,
+    message: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -45,7 +47,7 @@ struct State {
 fn load_machines() -> Result<State, Box<dyn std::error::Error>> {
     let f = File::open("machines.yml")?;
     let machines: Vec<Machine> = serde_yaml::from_reader(f)?;
-    Ok(State { machines: machines })
+    Ok(State { machines })
 }
 
 async fn list_machines(state: Arc<RwLock<State>>) -> Result<Response<Body>, hyper::Error> {
@@ -54,7 +56,7 @@ async fn list_machines(state: Arc<RwLock<State>>) -> Result<Response<Body>, hype
     Ok(Response::new(json.into()))
 }
 
-async fn echo(
+async fn router(
     state: Arc<RwLock<State>>,
     req: Request<Body>,
 ) -> Result<Response<Body>, hyper::Error> {
@@ -62,15 +64,12 @@ async fn echo(
     // maybe https://github.com/kardeiz/reset-router
     // maybe https://github.com/lambdax-x/rouste
 
-    // /v1/list
     // /v1/boot/{mac}
     // /v1/triggerBoot/mac/{mac}/payload/{payload}
 
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") => Ok(Response::new(Body::from(
-            "Try POSTing data to /echo such as: `curl localhost:3000/echo -XPOST -d 'hello world'`",
-        ))),
         (&Method::GET, "/v1/list") => list_machines(state).await,
+        (&Method::GET, "/v1/boot/{mac}") => list_machines(state).await,
 
         (&Method::POST, "/echo") => Ok(Response::new(req.into_body())),
 
@@ -110,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         async move {
             Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
                 let state = state.clone();
-                echo(state, req)
+                router(state, req)
             }))
         }
     });
