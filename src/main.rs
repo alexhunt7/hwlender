@@ -9,7 +9,7 @@ use std::sync::{Arc, RwLock};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json;
-use warp::{http, Filter};
+use warp::{http, reply::Reply, Filter};
 
 #[derive(Serialize, Deserialize)]
 struct NetworkInterface {
@@ -93,8 +93,27 @@ async fn pixiecore_boot(
     mac: String,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     // TODO return https://github.com/danderson/netboot/blob/master/pixiecore/README.api.md
-    unimplemented!("Pixiecore API not yet implemented");
-    Ok("")
+    let state = &mut (*state.write().unwrap());
+    match state.currently_booting.get(&mac) {
+        Some(payload_name) => match state.payloads.get(payload_name) {
+            Some(payload) => {
+                state.currently_booting.remove(&mac);
+                Ok(serde_json::to_string_pretty(payload)
+                    .unwrap()
+                    .into_response())
+            }
+            None => Ok(warp::reply::with_status(
+                "payload not found\n",
+                http::StatusCode::NOT_FOUND,
+            )
+            .into_response()),
+        },
+        None => Ok(warp::reply::with_status(
+            "MAC address not found in currently booting machines\n",
+            http::StatusCode::NOT_FOUND,
+        )
+        .into_response()),
+    }
 }
 
 async fn trigger_boot(
