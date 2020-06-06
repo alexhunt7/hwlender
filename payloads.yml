@@ -1,0 +1,14 @@
+v3.0.2:
+  kernel: my kernel
+  initrd:
+    - initrd1
+    - initrd2
+  cmdline: my command
+  message: booting v3.0.2
+v2:
+  kernel: my old kernel
+  initrd:
+    - initrd1
+    - initrd2
+  cmdline: my command
+  message: booting v2

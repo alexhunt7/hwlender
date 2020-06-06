@@ -1,8 +1,8 @@
 myhost.mydomain.com:
   hostname: myhost.mydomain.com
-  interfaces:
-    - ip: 127.0.0.1
-      mac: 08:00:27:b9:11:bc
+  interface:
+    ip: 127.0.0.1
+    mac: 08:00:27:b9:11:bc
   ipmi:
     ip: 10.10.10.10
     mac: 00:00:00:00:00:00
