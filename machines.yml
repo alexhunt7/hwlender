@@ -1,4 +1,4 @@
-- id: 1
+myhost.mydomain.com:
   hostname: myhost.mydomain.com
   interfaces:
     - ip: 127.0.0.1

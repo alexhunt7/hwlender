@@ -20,7 +20,6 @@ struct NetworkInterface {
 #[derive(Serialize, Deserialize)]
 struct Machine {
     // TODO
-    id: u32,
     hostname: String,
     interfaces: Vec<NetworkInterface>,
     ipmi: NetworkInterface,
@@ -43,13 +42,15 @@ struct Payload {
 
 #[derive(Serialize, Deserialize)]
 struct State {
-    machines: Vec<Machine>,
+    machines: HashMap<String, Machine>,
     payloads: HashMap<String, Payload>,
 }
 
-fn load_machines(machines_file: &str) -> Result<Vec<Machine>, Box<dyn std::error::Error>> {
+fn load_machines(
+    machines_file: &str,
+) -> Result<HashMap<String, Machine>, Box<dyn std::error::Error>> {
     let f = File::open(machines_file)?;
-    let machines: Vec<Machine> = serde_yaml::from_reader(f)?;
+    let machines: HashMap<String, Machine> = serde_yaml::from_reader(f)?;
     Ok(machines)
 }
 
@@ -107,67 +108,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
     Ok(())
 }
-
-//async fn router(
-//    state: Arc<RwLock<State>>,
-//    req: Request<Body>,
-//) -> Result<Response<Body>, hyper::Error> {
-//    // TODO better router?
-//    // maybe https://github.com/kardeiz/reset-router
-//    // maybe https://github.com/lambdax-x/rouste
-//
-//    // /v1/boot/{mac}
-//    // /v1/triggerBoot/mac/{mac}/payload/{payload}
-//
-//    match (req.method(), req.uri().path()) {
-//        (&Method::GET, "/v1/list") => list_machines(state).await,
-//        (&Method::GET, "/v1/boot/{mac}") => list_machines(state).await,
-//
-//        (&Method::POST, "/echo") => Ok(Response::new(req.into_body())),
-//
-//        (&Method::POST, "/echo/uppercase") => {
-//            let chunk_stream = req.into_body().map_ok(|chunk| {
-//                chunk
-//                    .iter()
-//                    .map(|byte| byte.to_ascii_uppercase())
-//                    .collect::<Vec<u8>>()
-//            });
-//            Ok(Response::new(Body::wrap_stream(chunk_stream)))
-//        }
-//
-//        (&Method::POST, "/echo/reversed") => {
-//            let whole_body = hyper::body::to_bytes(req.into_body()).await?;
-//            let reversed_body = whole_body.iter().rev().cloned().collect::<Vec<u8>>();
-//            Ok(Response::new(Body::from(reversed_body)))
-//        }
-//
-//        _ => {
-//            let mut not_found = Response::default();
-//            *not_found.status_mut() = StatusCode::NOT_FOUND;
-//            Ok(not_found)
-//        }
-//    }
-//}
-//
-//#[tokio::main]
-//async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//    // We'll bind to 127.0.0.1:3000
-//    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-//    // TODO load yaml?
-//    let state = Arc::new(RwLock::new(load_machines()?));
-//
-//    let service = make_service_fn(move |_| {
-//        let state = state.clone();
-//        async move {
-//            Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
-//                let state = state.clone();
-//                router(state, req)
-//            }))
-//        }
-//    });
-//
-//    let server = Server::bind(&addr).serve(service);
-//
-//    server.await?;
-//    Ok(())
-//}
