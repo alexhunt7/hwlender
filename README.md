@@ -35,3 +35,12 @@ v3.0.2:
   cmdline: my command
   message: booting v3.0.2
 ```
+
+## TODO
+
+- [ ] Tests.
+- [ ] Better error messages and handling.
+- [ ] Better logging (replace println! statements).
+- [ ] Make non-essential machine information optional.
+- [ ] Move all IPMI configs into machine.
+- [ ] Support multiple network interfaces.
