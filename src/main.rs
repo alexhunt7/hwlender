@@ -9,27 +9,18 @@ use warp::{http, reply::Reply, Filter};
 
 #[derive(Serialize, Deserialize)]
 struct Machine {
-    hostname: String,
+    hostname: Option<String>,
     // TODO handle multiple interfaces?
-    ip: String,
+    ip: Option<String>,
     mac: String,
-    pre_boot_actions: Vec<Action>,
+    ipmi: Option<IPMI>,
 }
 
 #[derive(Serialize, Deserialize)]
-enum Action {
-    #[serde(rename = "command")]
-    Command {
-        cmd: String,
-        #[serde(default)]
-        args: Vec<String>,
-    },
-    #[serde(rename = "ipmi")]
-    IPMI {
-        address: String,
-        username: String,
-        password: String,
-    },
+struct IPMI {
+    address: String,
+    username: String,
+    password: String,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -125,59 +116,10 @@ async fn trigger_boot(
                         .unwrap()
                         .insert(machine.mac.to_owned(), payload_name);
                 }
-                for action in &machine.pre_boot_actions {
-                    match action {
-                        Action::Command { cmd, args } => {
-                            match Command::new(cmd).args(args).status().await {
-                                Ok(_) => {}
-                                Err(_) => {
-                                    println!("failed to run command");
-                                    return Ok(http::StatusCode::INTERNAL_SERVER_ERROR);
-                                }
-                            }
-                        }
-                        Action::IPMI {
-                            address,
-                            username,
-                            password,
-                        } => {
-                            let base_args = &[
-                                "-I", "lanplus", "-L", "OPERATOR", "-H", &address, "-U", &username,
-                                "-P", &password,
-                            ];
-                            println!("chassis bootdev pxe");
-                            match Command::new("ipmitool")
-                                .args(base_args)
-                                .args(&["chassis", "bootdev", "pxe"])
-                                .status()
-                                .await
-                            {
-                                Ok(status) => {
-                                    if !status.success() {
-                                        println!("failed to run command: {}", status);
-                                        return Ok(http::StatusCode::INTERNAL_SERVER_ERROR);
-                                    }
-                                }
-                                Err(e) => {
-                                    println!("failed to run command: {}", e);
-                                    return Ok(http::StatusCode::INTERNAL_SERVER_ERROR);
-                                }
-                            }
-                            println!("chassis power reset");
-                            match Command::new("ipmitool")
-                                .args(base_args)
-                                .args(&["chassis", "power", "reset"])
-                                .status()
-                                .await
-                            {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    println!("failed to run command: {}", e);
-                                    return Ok(http::StatusCode::INTERNAL_SERVER_ERROR);
-                                }
-                            }
-                        }
-                    };
+                if let Some(ipmi) = &machine.ipmi {
+                    if let Err(_) = ipmi_boot(ipmi).await {
+                        return Ok(http::StatusCode::INTERNAL_SERVER_ERROR);
+                    }
                 }
                 Ok(http::StatusCode::OK)
             }
@@ -186,6 +128,47 @@ async fn trigger_boot(
         // TODO error message?
         None => Ok(http::StatusCode::BAD_REQUEST),
     }
+}
+
+async fn ipmi_boot(ipmi: &IPMI) -> std::io::Result<()> {
+    let base_args = &[
+        "-I",
+        "lanplus",
+        "-L",
+        "OPERATOR",
+        "-H",
+        &ipmi.address,
+        "-U",
+        &ipmi.username,
+        "-P",
+        &ipmi.password,
+    ];
+
+    let status = Command::new("ipmitool")
+        .args(base_args)
+        .args(&["chassis", "bootdev", "pxe"])
+        .status()
+        .await?;
+    if !status.success() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to set next boot device to PXE.",
+        ));
+    }
+
+    Command::new("ipmitool")
+        .args(base_args)
+        .args(&["chassis", "power", "reset"])
+        .status()
+        .await?;
+    if !status.success() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to reset power.",
+        ));
+    }
+
+    Ok(())
 }
 
 #[tokio::main]

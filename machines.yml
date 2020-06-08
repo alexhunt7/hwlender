@@ -2,18 +2,9 @@ myhost.mydomain.com:
   hostname: myhost.mydomain.com
   ip: 127.0.0.1
   mac: 08:00:27:22:e2:e6
-  pre_boot_actions:
-    - ipmi:
-        address: 10.10.10.10
-        username: asdf
-        password: qwer
-    - command:
-        cmd: date
-    - command:
-        cmd: sleep
-        args:
-          - 30
-    - command:
-        cmd: echo
-        args:
-          - hello world
+  ipmi:
+    address: 10.10.10.10
+    username: asdf
+    password: qwer
+otherhost.mydomain.com:
+  mac: 08:00:27:22:e2:e7
