@@ -7,6 +7,9 @@ myhost.mydomain.com:
     ip: 10.10.10.10
     mac: 00:00:00:00:00:00
   pre_boot_actions:
+    - IPMI:
+        username: asdf
+        password: qwer
     - command:
         cmd: date
         args: []

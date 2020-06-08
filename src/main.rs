@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 use std::fs::File;
-use std::process::Command;
+//use std::process::Command;
 //use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json;
+use tokio::process::Command;
+//use tokio::task;
 use warp::{http, reply::Reply, Filter};
 
 #[derive(Serialize, Deserialize)]
@@ -33,7 +35,14 @@ enum Status {
 #[derive(Serialize, Deserialize)]
 enum Action {
     #[serde(rename = "command")]
-    Command { cmd: String, args: Vec<String> },
+    Command {
+        cmd: String,
+        args: Vec<String>,
+    },
+    IPMI {
+        username: String,
+        password: String,
+    },
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -130,24 +139,72 @@ async fn trigger_boot(
     match state.payloads.get(&payload_name) {
         Some(_) => match state.machines.get(&name) {
             Some(machine) => {
-                state
-                    .currently_booting
-                    .write()
-                    .unwrap()
-                    .insert(machine.interface.mac.to_owned(), payload_name);
+                {
+                    // put this in its own scope to unlock immediately
+                    state
+                        .currently_booting
+                        .write()
+                        .unwrap()
+                        .insert(machine.interface.mac.to_owned(), payload_name);
+                }
                 // TODO save machines.yml?
                 // TODO set nextboot to pxe
                 // TODO trigger reboot
                 for action in &machine.pre_boot_actions {
                     match action {
                         Action::Command { cmd, args } => {
-                            // TODO async?
-                            match Command::new(cmd).args(args).spawn() {
-                                Ok(_child) => {}
-                                Err(_e) => {
+                            match Command::new(cmd).args(args).status().await {
+                                Ok(_) => {}
+                                Err(_) => {
+                                    println!("failed to run command");
                                     return Ok(http::StatusCode::INTERNAL_SERVER_ERROR);
                                 }
-                            };
+                            }
+                        }
+                        Action::IPMI { username, password } => {
+                            let base_args = &[
+                                "-I",
+                                "lanplus",
+                                "-L",
+                                "OPERATOR",
+                                "-H",
+                                &machine.ipmi.ip,
+                                "-U",
+                                &username,
+                                "-P",
+                                &password,
+                            ];
+                            println!("chassis bootdev pxe");
+                            match Command::new("ipmitool")
+                                .args(base_args)
+                                .args(&["chassis", "bootdev", "pxe"])
+                                .status()
+                                .await
+                            {
+                                Ok(status) => {
+                                    if !status.success() {
+                                        println!("failed to run command: {}", status);
+                                        return Ok(http::StatusCode::INTERNAL_SERVER_ERROR);
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("failed to run command: {}", e);
+                                    return Ok(http::StatusCode::INTERNAL_SERVER_ERROR);
+                                }
+                            }
+                            println!("chassis power reset");
+                            match Command::new("ipmitool")
+                                .args(base_args)
+                                .args(&["chassis", "power", "reset"])
+                                .status()
+                                .await
+                            {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    println!("failed to run command: {}", e);
+                                    return Ok(http::StatusCode::INTERNAL_SERVER_ERROR);
+                                }
+                            }
                         }
                     };
                 }
