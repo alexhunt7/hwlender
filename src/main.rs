@@ -1,35 +1,19 @@
 use std::collections::HashMap;
 use std::fs::File;
-//use std::process::Command;
-//use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json;
 use tokio::process::Command;
-//use tokio::task;
 use warp::{http, reply::Reply, Filter};
-
-#[derive(Serialize, Deserialize)]
-struct NetworkInterface {
-    ip: String,
-    mac: String,
-}
 
 #[derive(Serialize, Deserialize)]
 struct Machine {
     hostname: String,
     // TODO handle multiple interfaces?
-    interface: NetworkInterface,
-    ipmi: NetworkInterface,
+    ip: String,
+    mac: String,
     pre_boot_actions: Vec<Action>,
-}
-
-#[derive(Serialize, Deserialize)]
-enum Status {
-    Idle,
-    InPXEBoot(String),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -37,9 +21,12 @@ enum Action {
     #[serde(rename = "command")]
     Command {
         cmd: String,
+        #[serde(default)]
         args: Vec<String>,
     },
+    #[serde(rename = "ipmi")]
     IPMI {
+        address: String,
         username: String,
         password: String,
     },
@@ -80,15 +67,6 @@ fn load_state(machine_file: &str, payload_file: &str) -> Result<State, Box<dyn s
     let machines = load_machines(machine_file)?;
     let payloads = load_payloads(payload_file)?;
     let currently_booting = Arc::new(RwLock::new(HashMap::new()));
-    //let currently_booting = machines
-    //    .iter()
-    //    .filter_map(|(_name, machine)| match &machine.status {
-    //        Status::InPXEBoot(payload_name) => {
-    //            Some((machine.interface.mac.clone(), payload_name.clone()))
-    //        }
-    //        _ => None,
-    //    })
-    //    .collect();
     Ok(State {
         machines,
         payloads,
@@ -145,11 +123,8 @@ async fn trigger_boot(
                         .currently_booting
                         .write()
                         .unwrap()
-                        .insert(machine.interface.mac.to_owned(), payload_name);
+                        .insert(machine.mac.to_owned(), payload_name);
                 }
-                // TODO save machines.yml?
-                // TODO set nextboot to pxe
-                // TODO trigger reboot
                 for action in &machine.pre_boot_actions {
                     match action {
                         Action::Command { cmd, args } => {
@@ -161,18 +136,14 @@ async fn trigger_boot(
                                 }
                             }
                         }
-                        Action::IPMI { username, password } => {
+                        Action::IPMI {
+                            address,
+                            username,
+                            password,
+                        } => {
                             let base_args = &[
-                                "-I",
-                                "lanplus",
-                                "-L",
-                                "OPERATOR",
-                                "-H",
-                                &machine.ipmi.ip,
-                                "-U",
-                                &username,
-                                "-P",
-                                &password,
+                                "-I", "lanplus", "-L", "OPERATOR", "-H", &address, "-U", &username,
+                                "-P", &password,
                             ];
                             println!("chassis bootdev pxe");
                             match Command::new("ipmitool")
