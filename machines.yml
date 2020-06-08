@@ -1,10 +1,10 @@
 myhost.mydomain.com:
-  hostname: myhost.mydomain.com
-  ip: 127.0.0.1
   mac: 08:00:27:22:e2:e6
+otherhost.mydomain.com:
+  hostname: otherhost.mydomain.com
+  ip: 127.0.0.1
+  mac: 08:00:27:22:e2:e7
   ipmi:
     address: 10.10.10.10
     username: asdf
     password: qwer
-otherhost.mydomain.com:
-  mac: 08:00:27:22:e2:e7

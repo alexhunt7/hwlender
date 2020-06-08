@@ -80,7 +80,9 @@ async fn pixiecore_boot(
     match currently_booting.get(&mac) {
         Some(payload_name) => match state.payloads.get(payload_name) {
             Some(payload) => {
-                currently_booting.remove(&mac);
+                // TODO figure out why pixiecore calls this three times
+                println!("attempting boot");
+                //currently_booting.remove(&mac);
                 Ok(serde_json::to_string_pretty(payload)
                     .unwrap()
                     .into_response())

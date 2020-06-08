@@ -43,6 +43,7 @@ v3.0.2:
 
 ## TODO
 
+- [ ] Disable PXE booting after we're done loading files.
 - [ ] Tests.
 - [ ] Better error messages and handling.
 - [ ] Better logging (replace println! statements).
