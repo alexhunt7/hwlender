@@ -48,7 +48,7 @@ struct Payload {
 struct State {
     machines: HashMap<String, Machine>,
     payloads: HashMap<String, Payload>,
-    currently_booting: HashMap<String, String>,
+    currently_booting: Arc<RwLock<HashMap<String, String>>>,
 }
 
 fn load_machines(
@@ -70,7 +70,7 @@ fn load_payloads(
 fn load_state(machine_file: &str, payload_file: &str) -> Result<State, Box<dyn std::error::Error>> {
     let machines = load_machines(machine_file)?;
     let payloads = load_payloads(payload_file)?;
-    let currently_booting = HashMap::new();
+    let currently_booting = Arc::new(RwLock::new(HashMap::new()));
     //let currently_booting = machines
     //    .iter()
     //    .filter_map(|(_name, machine)| match &machine.status {
@@ -87,22 +87,22 @@ fn load_state(machine_file: &str, payload_file: &str) -> Result<State, Box<dyn s
     })
 }
 
-async fn list_machines(state: Arc<RwLock<State>>) -> Result<impl warp::Reply, warp::Rejection> {
-    let state = &(*state.read().unwrap());
-    let json = serde_json::to_string_pretty(state).unwrap();
+async fn list_machines(state: Arc<State>) -> Result<impl warp::Reply, warp::Rejection> {
+    let json = serde_json::to_string_pretty(&state).unwrap();
     Ok(json)
 }
 
 async fn pixiecore_boot(
-    state: Arc<RwLock<State>>,
+    state: Arc<State>,
     mac: String,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     // TODO return https://github.com/danderson/netboot/blob/master/pixiecore/README.api.md
-    let state = &mut (*state.write().unwrap());
-    match state.currently_booting.get(&mac) {
+    //let state = &mut (*state.write().unwrap());
+    let mut currently_booting = state.currently_booting.write().unwrap();
+    match currently_booting.get(&mac) {
         Some(payload_name) => match state.payloads.get(payload_name) {
             Some(payload) => {
-                state.currently_booting.remove(&mac);
+                currently_booting.remove(&mac);
                 Ok(serde_json::to_string_pretty(payload)
                     .unwrap()
                     .into_response())
@@ -122,16 +122,18 @@ async fn pixiecore_boot(
 }
 
 async fn trigger_boot(
-    state: Arc<RwLock<State>>,
+    state: Arc<State>,
     name: String,
     payload_name: String,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    let state = &mut (*state.write().unwrap());
+    //let state = &mut (*state.write().unwrap());
     match state.payloads.get(&payload_name) {
         Some(_) => match state.machines.get(&name) {
             Some(machine) => {
                 state
                     .currently_booting
+                    .write()
+                    .unwrap()
                     .insert(machine.interface.mac.to_owned(), payload_name);
                 // TODO save machines.yml?
                 // TODO set nextboot to pxe
@@ -160,7 +162,7 @@ async fn trigger_boot(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let state = Arc::new(RwLock::new(load_state("machines.yml", "payloads.yml")?));
+    let state = Arc::new(load_state("machines.yml", "payloads.yml")?);
     let state_filter = warp::any().map(move || state.clone());
 
     // /v1/list
