@@ -2,8 +2,19 @@ myhost.mydomain.com:
   hostname: myhost.mydomain.com
   interface:
     ip: 127.0.0.1
-    mac: 08:00:27:b9:11:bc
+    mac: 08:00:27:22:e2:e6
   ipmi:
     ip: 10.10.10.10
     mac: 00:00:00:00:00:00
-  status: Idle
+  pre_boot_actions:
+    - command:
+        cmd: date
+        args: []
+    - command:
+        cmd: sleep
+        args:
+          - 30
+    - command:
+        cmd: echo
+        args:
+          - hello world

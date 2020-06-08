@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 use std::fs::File;
+use std::process::Command;
 //use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 
-//use futures_util::TryStreamExt;
-//use hyper::service::{make_service_fn, service_fn};
-//use hyper::{Body, Method, Request, Response, Server, StatusCode};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json;
@@ -23,13 +21,19 @@ struct Machine {
     // TODO handle multiple interfaces?
     interface: NetworkInterface,
     ipmi: NetworkInterface,
-    status: Status,
+    pre_boot_actions: Vec<Action>,
 }
 
 #[derive(Serialize, Deserialize)]
 enum Status {
     Idle,
     InPXEBoot(String),
+}
+
+#[derive(Serialize, Deserialize)]
+enum Action {
+    #[serde(rename = "command")]
+    Command { cmd: String, args: Vec<String> },
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -66,15 +70,16 @@ fn load_payloads(
 fn load_state(machine_file: &str, payload_file: &str) -> Result<State, Box<dyn std::error::Error>> {
     let machines = load_machines(machine_file)?;
     let payloads = load_payloads(payload_file)?;
-    let currently_booting = machines
-        .iter()
-        .filter_map(|(_name, machine)| match &machine.status {
-            Status::InPXEBoot(payload_name) => {
-                Some((machine.interface.mac.clone(), payload_name.clone()))
-            }
-            _ => None,
-        })
-        .collect();
+    let currently_booting = HashMap::new();
+    //let currently_booting = machines
+    //    .iter()
+    //    .filter_map(|(_name, machine)| match &machine.status {
+    //        Status::InPXEBoot(payload_name) => {
+    //            Some((machine.interface.mac.clone(), payload_name.clone()))
+    //        }
+    //        _ => None,
+    //    })
+    //    .collect();
     Ok(State {
         machines,
         payloads,
@@ -131,6 +136,19 @@ async fn trigger_boot(
                 // TODO save machines.yml?
                 // TODO set nextboot to pxe
                 // TODO trigger reboot
+                for action in &machine.pre_boot_actions {
+                    match action {
+                        Action::Command { cmd, args } => {
+                            // TODO async?
+                            match Command::new(cmd).args(args).spawn() {
+                                Ok(_child) => {}
+                                Err(_e) => {
+                                    return Ok(http::StatusCode::INTERNAL_SERVER_ERROR);
+                                }
+                            };
+                        }
+                    };
+                }
                 Ok(http::StatusCode::OK)
             }
             None => Ok(http::StatusCode::NOT_FOUND),
