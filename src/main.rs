@@ -38,7 +38,7 @@ struct Payload {
 struct State {
     machines: HashMap<String, Machine>,
     payloads: HashMap<String, Payload>,
-    currently_booting: Arc<RwLock<HashMap<String, String>>>,
+    currently_booting: RwLock<HashMap<String, String>>,
 }
 
 fn load_machines(
@@ -60,7 +60,7 @@ fn load_payloads(
 fn load_state(machine_file: &str, payload_file: &str) -> Result<State, Box<dyn std::error::Error>> {
     let machines = load_machines(machine_file)?;
     let payloads = load_payloads(payload_file)?;
-    let currently_booting = Arc::new(RwLock::new(HashMap::new()));
+    let currently_booting = RwLock::new(HashMap::new());
     Ok(State {
         machines,
         payloads,
