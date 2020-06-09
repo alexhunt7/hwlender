@@ -46,7 +46,7 @@ v3.0.2:
 - [ ] Disable PXE booting after we're done loading files.
 - [ ] Tests.
 - [ ] Better error messages and handling.
-- [ ] Better logging (replace println! statements).
+- [/] Better logging (replace println! statements).
 - [X] Make non-essential machine information optional.
 - [X] Move all IPMI configs into machine.
 - [ ] Support multiple network interfaces.

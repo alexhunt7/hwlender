@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::env;
 use std::fs::File;
 use std::sync::{Arc, RwLock};
 
 use clap::{App, Arg};
+use pretty_env_logger;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::process::Command;
@@ -75,14 +77,12 @@ async fn pixiecore_boot(
     state: Arc<State>,
     mac: String,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    // TODO return https://github.com/danderson/netboot/blob/master/pixiecore/README.api.md
     //let state = &mut (*state.write().unwrap());
     let currently_booting = state.currently_booting.write().unwrap();
     match currently_booting.get(&mac) {
         Some(payload_name) => match state.payloads.get(payload_name) {
             Some(payload) => {
                 // TODO figure out why pixiecore calls this three times
-                println!("attempting boot");
                 //currently_booting.remove(&mac);
                 Ok(serde_json::to_string_pretty(payload)
                     .unwrap()
@@ -190,6 +190,13 @@ fn load_config(config_path: &str) -> Result<Config, Box<dyn std::error::Error>> 
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if env::var_os("RUST_LOG").is_none() {
+        // Set `RUST_LOG=todos=debug` to see debug logs,
+        // this only shows access logs.
+        env::set_var("RUST_LOG", "hwlender=info");
+    }
+    pretty_env_logger::init();
+
     let args = App::new("Hardware Lender")
         .arg(
             Arg::with_name("config")
@@ -226,7 +233,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ))
         .and_then(trigger_boot);
 
-    let routes = get_list.or(get_pixiecore_boot).or(post_trigger_boot);
+    let routes = get_list
+        .or(get_pixiecore_boot)
+        .or(post_trigger_boot)
+        .with(warp::log("hwlender"));
 
     warp::serve(routes)
         .tls()
