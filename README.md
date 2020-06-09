@@ -50,3 +50,5 @@ v3.0.2:
 - [X] Make non-essential machine information optional.
 - [X] Move all IPMI configs into machine.
 - [ ] Support multiple network interfaces.
+- [ ] Authentication (LDAP?).
+- [X] TLS.

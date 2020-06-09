@@ -1,0 +1,4 @@
+cert_path: testdata/certs/cert.pem
+key_path: testdata/certs/key.pem
+machines_path: testdata/machines.yml
+payloads_path: testdata/payloads.yml

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::sync::{Arc, RwLock};
 
+use clap::{App, Arg};
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::process::Command;
@@ -76,7 +77,7 @@ async fn pixiecore_boot(
 ) -> Result<impl warp::Reply, warp::Rejection> {
     // TODO return https://github.com/danderson/netboot/blob/master/pixiecore/README.api.md
     //let state = &mut (*state.write().unwrap());
-    let mut currently_booting = state.currently_booting.write().unwrap();
+    let currently_booting = state.currently_booting.write().unwrap();
     match currently_booting.get(&mac) {
         Some(payload_name) => match state.payloads.get(payload_name) {
             Some(payload) => {
@@ -173,9 +174,36 @@ async fn ipmi_boot(ipmi: &IPMI) -> std::io::Result<()> {
     Ok(())
 }
 
+#[derive(Serialize, Deserialize)]
+struct Config {
+    cert_path: String,
+    key_path: String,
+    machines_path: String,
+    payloads_path: String,
+}
+
+fn load_config(config_path: &str) -> Result<Config, Box<dyn std::error::Error>> {
+    let f = File::open(config_path)?;
+    let config: Config = serde_yaml::from_reader(f)?;
+    Ok(config)
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let state = Arc::new(load_state("machines.yml", "payloads.yml")?);
+    let args = App::new("Hardware Lender")
+        .arg(
+            Arg::with_name("config")
+                .short("c")
+                .long("config")
+                .value_name("FILE")
+                .help("Path to config file")
+                .takes_value(true),
+        )
+        .get_matches();
+    let config_path = args.value_of("config").unwrap_or("config.yml");
+    let config = load_config(config_path)?;
+
+    let state = Arc::new(load_state(&config.machines_path, &config.payloads_path)?);
     let state_filter = warp::any().map(move || state.clone());
 
     // /v1/list
@@ -200,6 +228,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let routes = get_list.or(get_pixiecore_boot).or(post_trigger_boot);
 
-    warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
+    warp::serve(routes)
+        .tls()
+        .cert_path(config.cert_path)
+        .key_path(config.key_path)
+        .run(([127, 0, 0, 1], 3030))
+        .await;
     Ok(())
 }
