@@ -1,17 +1,41 @@
 <html>
 	<head>
 		<title>HWLender Machines</title>
+<style type=text/css>
+{% include "style.css" %}
+</style>
 	</head>
 	<body>
-		<table>
+		<table class="blueTable">
+			<thead>
+				<tr>
+					<th>
+						Name
+					</th>
+					<th>
+						Hostname
+					</th>
+					<th>
+						MAC
+					</th>
+					<th>
+						IP
+					</th>
+					<th>
+						IPMI Address
+					</th>
+					<th>
+						Boot Payload
+					</th>
+					<th>
+						Boot!
+					</th>
+				</tr>
+			</thead>
 			{%- for (name, machine) in machines %}
 			<tr>
 				<td>
 					{{ name }}
-				</td>
-
-				<td>
-					{{ machine.mac }}
 				</td>
 
 				<td>
@@ -20,6 +44,10 @@
 					{{ hostname }}
 				{%- when None %}
 				{%- endmatch %}
+				</td>
+
+				<td>
+					{{ machine.mac }}
 				</td>
 
 				<td>
@@ -38,7 +66,6 @@
 				{%- endmatch %}
 				</td>
 				<td>
-					<label for="payload">Boot payload:</label>
 					<select name="payload" id="payload" form="bootform_{{ name }}">
 						{%- for (payload, _) in payloads %}
 						<option value="{{ payload }}">{{ payload }}</option>
@@ -47,7 +74,7 @@
 				</td>
 				<td>
 					<form method="post" action="/boot/{{ name }}" id="bootform_{{ name }}">
-						<input type="submit">
+						<input type="submit" value="Boot!">
 					</form>
 				</td>
 			</tr>
