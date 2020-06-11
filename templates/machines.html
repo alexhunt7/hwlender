@@ -37,6 +37,19 @@
 				{%- when None %}
 				{%- endmatch %}
 				</td>
+				<td>
+					<label for="payload">Boot payload:</label>
+					<select name="payload" id="payload" form="bootform_{{ name }}">
+						{%- for (payload, _) in payloads %}
+						<option value="{{ payload }}">{{ payload }}</option>
+						{%- endfor %}
+					</select>
+				</td>
+				<td>
+					<form method="post" action="/boot/{{ name }}" id="bootform_{{ name }}">
+						<input type="submit">
+					</form>
+				</td>
 			</tr>
 			{%- endfor %}
 		</table>

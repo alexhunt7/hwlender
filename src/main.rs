@@ -122,15 +122,20 @@ async fn trigger_boot(
                 }
                 if let Some(ipmi) = &machine.ipmi {
                     if let Err(_) = ipmi_boot(ipmi).await {
-                        return Ok(http::StatusCode::INTERNAL_SERVER_ERROR);
+                        return Ok(warp::reply::with_status("Failed to initiat reboot into PXE.\n\nPayload has been configured, but you will need to manually reboot the host into PXE mode.\n", http::StatusCode::INTERNAL_SERVER_ERROR));
                     }
                 }
-                Ok(http::StatusCode::OK)
+                Ok(warp::reply::with_status("OK\n", http::StatusCode::CREATED))
             }
-            None => Ok(http::StatusCode::NOT_FOUND),
+            None => Ok(warp::reply::with_status(
+                "Machine by that name not found\n",
+                http::StatusCode::NOT_FOUND,
+            )),
         },
-        // TODO error message?
-        None => Ok(http::StatusCode::BAD_REQUEST),
+        None => Ok(warp::reply::with_status(
+            "Payload by that name node found\n",
+            http::StatusCode::NOT_FOUND,
+        )),
     }
 }
 
@@ -180,12 +185,28 @@ async fn machines_html(state: Arc<State>) -> Result<impl warp::Reply, warp::Reje
     #[template(path = "machines.html")]
     struct MachinesTemplate<'a> {
         machines: &'a HashMap<String, Machine>,
+        payloads: &'a HashMap<String, Payload>,
     };
 
     let machines = MachinesTemplate {
         machines: &state.machines,
+        payloads: &state.payloads,
     };
     Ok(warp::reply::html(machines.render().unwrap()))
+}
+
+#[derive(Serialize, Deserialize)]
+struct PayloadForm {
+    payload: String,
+}
+
+async fn boot_form(
+    state: Arc<State>,
+    name: String,
+    //form: HashMap<String, String>,
+    payload_form: PayloadForm,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    trigger_boot(state, name, payload_form.payload).await
 }
 
 #[derive(Serialize, Deserialize)]
@@ -251,10 +272,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and(warp::path("machines"))
         .and_then(machines_html);
 
+    // /boot/{name}
+    let post_boot_form = warp::post()
+        .and(warp::body::content_length_limit(1024 * 32))
+        .and(state_filter.clone())
+        .and(warp::path!("boot" / String))
+        .and(warp::filters::body::form())
+        .and_then(boot_form);
+
     let routes = get_list
         .or(get_pixiecore_boot)
         .or(post_trigger_boot)
         .or(get_machines_html)
+        .or(post_boot_form)
         .with(warp::log("hwlender"));
 
     warp::serve(routes)
