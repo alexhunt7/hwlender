@@ -3,6 +3,7 @@ use std::env;
 use std::fs::File;
 use std::sync::{Arc, RwLock};
 
+use askama::Template;
 use clap::{App, Arg};
 use pretty_env_logger;
 use serde::Deserialize;
@@ -174,6 +175,19 @@ async fn ipmi_boot(ipmi: &IPMI) -> std::io::Result<()> {
     Ok(())
 }
 
+async fn machines_html(state: Arc<State>) -> Result<impl warp::Reply, warp::Rejection> {
+    #[derive(Template)]
+    #[template(path = "machines.html")]
+    struct MachinesTemplate<'a> {
+        machines: &'a HashMap<String, Machine>,
+    };
+
+    let machines = MachinesTemplate {
+        machines: &state.machines,
+    };
+    Ok(warp::reply::html(machines.render().unwrap()))
+}
+
 #[derive(Serialize, Deserialize)]
 struct Config {
     cert_path: String,
@@ -191,8 +205,6 @@ fn load_config(config_path: &str) -> Result<Config, Box<dyn std::error::Error>> 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if env::var_os("RUST_LOG").is_none() {
-        // Set `RUST_LOG=todos=debug` to see debug logs,
-        // this only shows access logs.
         env::set_var("RUST_LOG", "hwlender=info");
     }
     pretty_env_logger::init();
@@ -233,9 +245,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ))
         .and_then(trigger_boot);
 
+    // /machines
+    let get_machines_html = warp::get()
+        .and(state_filter.clone())
+        .and(warp::path("machines"))
+        .and_then(machines_html);
+
     let routes = get_list
         .or(get_pixiecore_boot)
         .or(post_trigger_boot)
+        .or(get_machines_html)
         .with(warp::log("hwlender"));
 
     warp::serve(routes)

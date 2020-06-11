@@ -1,0 +1,19 @@
+<html>
+    <head>
+        <title>HWLender Machines</title>
+    </head>
+    <body>
+        <table>
+            {%- for (name, machine) in machines %}
+            <tr>
+                <td>
+                     {{ name }}
+                </td>
+                <td>
+                     {{ machine.mac }}
+                </td>
+            </tr>
+            {%- endfor %}
+        </table>
+    </body>
+</html>
