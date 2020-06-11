@@ -1,19 +1,44 @@
 <html>
-    <head>
-        <title>HWLender Machines</title>
-    </head>
-    <body>
-        <table>
-            {%- for (name, machine) in machines %}
-            <tr>
-                <td>
-                     {{ name }}
-                </td>
-                <td>
-                     {{ machine.mac }}
-                </td>
-            </tr>
-            {%- endfor %}
-        </table>
-    </body>
+	<head>
+		<title>HWLender Machines</title>
+	</head>
+	<body>
+		<table>
+			{%- for (name, machine) in machines %}
+			<tr>
+				<td>
+					{{ name }}
+				</td>
+
+				<td>
+					{{ machine.mac }}
+				</td>
+
+				<td>
+				{%- match machine.hostname %}
+				{%- when Some with (hostname) %}
+					{{ hostname }}
+				{%- when None %}
+				{%- endmatch %}
+				</td>
+
+				<td>
+				{%- match machine.ip %}
+				{%- when Some with (ip) %}
+					{{ ip }}
+				{%- when None %}
+				{%- endmatch %}
+				</td>
+
+				<td>
+				{%- match machine.ipmi %}
+				{%- when Some with (ipmi) %}
+					{{ ipmi.address }}
+				{%- when None %}
+				{%- endmatch %}
+				</td>
+			</tr>
+			{%- endfor %}
+		</table>
+	</body>
 </html>
