@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::env;
 use std::fs::File;
 use std::sync::{Arc, RwLock};
@@ -37,35 +37,37 @@ struct Payload {
 
 #[derive(Serialize, Deserialize)]
 struct State {
-    machines: HashMap<String, Machine>,
-    payloads: HashMap<String, Payload>,
-    currently_booting: RwLock<HashMap<String, String>>,
+    machines: BTreeMap<String, Machine>,
+    payloads: BTreeMap<String, Payload>,
+    currently_booting: RwLock<BTreeMap<String, String>>,
+    default_payload: String,
 }
 
-fn load_machines(
-    machines_file: &str,
-) -> Result<HashMap<String, Machine>, Box<dyn std::error::Error>> {
+fn load_machines(machines_file: &str) -> anyhow::Result<BTreeMap<String, Machine>> {
     let f = File::open(machines_file)?;
-    let machines: HashMap<String, Machine> = serde_yaml::from_reader(f)?;
+    let machines: BTreeMap<String, Machine> = serde_yaml::from_reader(f)?;
     Ok(machines)
 }
 
-fn load_payloads(
-    payload_file: &str,
-) -> Result<HashMap<String, Payload>, Box<dyn std::error::Error>> {
+fn load_payloads(payload_file: &str) -> anyhow::Result<BTreeMap<String, Payload>> {
     let f = File::open(payload_file)?;
-    let payloads: HashMap<String, Payload> = serde_yaml::from_reader(f)?;
+    let payloads: BTreeMap<String, Payload> = serde_yaml::from_reader(f)?;
     Ok(payloads)
 }
 
-fn load_state(machine_file: &str, payload_file: &str) -> Result<State, Box<dyn std::error::Error>> {
+fn load_state(
+    machine_file: &str,
+    payload_file: &str,
+    default_payload: &str,
+) -> anyhow::Result<State> {
     let machines = load_machines(machine_file)?;
     let payloads = load_payloads(payload_file)?;
-    let currently_booting = RwLock::new(HashMap::new());
+    let currently_booting = RwLock::new(BTreeMap::new());
     Ok(State {
         machines,
         payloads,
         currently_booting,
+        default_payload: default_payload.to_owned(),
     })
 }
 
@@ -184,13 +186,15 @@ async fn machines_html(state: Arc<State>) -> Result<impl warp::Reply, warp::Reje
     #[derive(Template)]
     #[template(path = "machines.html")]
     struct MachinesTemplate<'a> {
-        machines: &'a HashMap<String, Machine>,
-        payloads: &'a HashMap<String, Payload>,
+        machines: &'a BTreeMap<String, Machine>,
+        payloads: &'a BTreeMap<String, Payload>,
+        default_payload: &'a str,
     };
 
     let machines = MachinesTemplate {
         machines: &state.machines,
         payloads: &state.payloads,
+        default_payload: &state.default_payload,
     };
     Ok(warp::reply::html(machines.render().unwrap()))
 }
@@ -203,7 +207,6 @@ struct PayloadForm {
 async fn boot_form(
     state: Arc<State>,
     name: String,
-    //form: HashMap<String, String>,
     payload_form: PayloadForm,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     trigger_boot(state, name, payload_form.payload).await
@@ -215,16 +218,17 @@ struct Config {
     key_path: String,
     machines_path: String,
     payloads_path: String,
+    default_payload: String,
 }
 
-fn load_config(config_path: &str) -> Result<Config, Box<dyn std::error::Error>> {
+fn load_config(config_path: &str) -> anyhow::Result<Config> {
     let f = File::open(config_path)?;
     let config: Config = serde_yaml::from_reader(f)?;
     Ok(config)
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> anyhow::Result<()> {
     if env::var_os("RUST_LOG").is_none() {
         env::set_var("RUST_LOG", "hwlender=info");
     }
@@ -243,7 +247,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_path = args.value_of("config").unwrap_or("config.yml");
     let config = load_config(config_path)?;
 
-    let state = Arc::new(load_state(&config.machines_path, &config.payloads_path)?);
+    let state = Arc::new(load_state(
+        &config.machines_path,
+        &config.payloads_path,
+        &config.default_payload,
+    )?);
     let state_filter = warp::any().map(move || state.clone());
 
     // /v1/list

@@ -68,7 +68,7 @@
 				<td>
 					<select name="payload" id="payload" form="bootform_{{ name }}">
 						{%- for (payload, _) in payloads %}
-						<option value="{{ payload }}">{{ payload }}</option>
+						<option value="{{ payload }}" {%- if payload == default_payload %} selected{%- endif -%}>{{ payload }}</option>
 						{%- endfor %}
 					</select>
 				</td>
