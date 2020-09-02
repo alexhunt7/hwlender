@@ -3,6 +3,7 @@ use std::env;
 use std::fs::File;
 use std::sync::{Arc, RwLock};
 
+use anyhow::Context;
 use askama::Template;
 use clap::{App, Arg};
 use pretty_env_logger;
@@ -60,8 +61,10 @@ fn load_state(
     payload_file: &str,
     default_payload: &str,
 ) -> anyhow::Result<State> {
-    let machines = load_machines(machine_file)?;
-    let payloads = load_payloads(payload_file)?;
+    let machines = load_machines(machine_file)
+        .context(format!("Failed to load machines from {}", machine_file))?;
+    let payloads = load_payloads(payload_file)
+        .context(format!("Failed to load payloads from {}", payload_file))?;
     let currently_booting = RwLock::new(BTreeMap::new());
     Ok(State {
         machines,
@@ -245,13 +248,17 @@ async fn main() -> anyhow::Result<()> {
         )
         .get_matches();
     let config_path = args.value_of("config").unwrap_or("config.yml");
-    let config = load_config(config_path)?;
+    let config =
+        load_config(config_path).context(format!("Failed to load config {}", config_path))?;
 
-    let state = Arc::new(load_state(
-        &config.machines_path,
-        &config.payloads_path,
-        &config.default_payload,
-    )?);
+    let state = Arc::new(
+        load_state(
+            &config.machines_path,
+            &config.payloads_path,
+            &config.default_payload,
+        )
+        .context("Failed to load state")?,
+    );
     let state_filter = warp::any().map(move || state.clone());
 
     // /v1/list
@@ -268,6 +275,7 @@ async fn main() -> anyhow::Result<()> {
 
     // /v1/triggerBoot/name/{name}/payload/{payload}
     let post_trigger_boot = warp::post()
+        .and(warp::body::content_length_limit(1024 * 32))
         .and(state_filter.clone())
         .and(warp::path!(
             "v1" / "triggerBoot" / "name" / String / "payload" / String
