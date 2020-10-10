@@ -1,5 +1,7 @@
-cert_path: testdata/certs/cert.pem
-key_path: testdata/certs/key.pem
+tls:
+  cert_path: testdata/certs/cert.pem
+  key_path: testdata/certs/key.pem
+socket_address: 127.0.0.1:3030
 machines_path: testdata/machines.yml
 payloads_path: testdata/payloads.yml
 default_payload: v3.0.2

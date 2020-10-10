@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::env;
 use std::fs::File;
+use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 
 use anyhow::Context;
@@ -217,11 +218,17 @@ async fn boot_form(
 
 #[derive(Serialize, Deserialize)]
 struct Config {
-    cert_path: String,
-    key_path: String,
+    tls: Option<TlsConfig>,
+    socket_address: SocketAddr,
     machines_path: String,
     payloads_path: String,
     default_payload: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct TlsConfig {
+    cert_path: String,
+    key_path: String,
 }
 
 fn load_config(config_path: &str) -> anyhow::Result<Config> {
@@ -303,11 +310,15 @@ async fn main() -> anyhow::Result<()> {
         .or(post_boot_form)
         .with(warp::log("hwlender"));
 
-    warp::serve(routes)
-        .tls()
-        .cert_path(config.cert_path)
-        .key_path(config.key_path)
-        .run(([127, 0, 0, 1], 3030))
-        .await;
+    if let Some(tls) = config.tls {
+        warp::serve(routes)
+            .tls()
+            .cert_path(tls.cert_path)
+            .key_path(tls.key_path)
+            .run(config.socket_address)
+            .await;
+    } else {
+        warp::serve(routes).run(config.socket_address).await;
+    }
     Ok(())
 }

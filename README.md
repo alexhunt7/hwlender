@@ -4,6 +4,23 @@ The eventual goal is to enable users to "check out" a machine, which will then b
 
 ## Config files:
 
+### config.yml
+
+Defines server parameters, and paths to machines and payloads config files.
+
+TLS will be used if provided.
+
+Example:
+```yaml
+tls:
+  cert_path: testdata/certs/cert.pem
+  key_path: testdata/certs/key.pem
+socket_address: 127.0.0.1:3030
+machines_path: testdata/machines.yml
+payloads_path: testdata/payloads.yml
+default_payload: v3.0.2
+```
+
 ### machines.yml
 
 Defines the addresses and pre-boot actions to take for a map of machines.
@@ -41,6 +58,19 @@ v3.0.2:
   message: booting v3.0.2
 ```
 
+## Required ports
+
+For Pixiecore:
+
+- 67/udp
+- 68/udp
+- 69/udp
+- 80/tcp
+
+For HWLender:
+
+- whatever you set in the socket\_address, tcp
+
 ## TODO
 
 - [ ] Disable PXE booting after we're done loading files.
@@ -50,5 +80,6 @@ v3.0.2:
 - [X] Make non-essential machine information optional.
 - [X] Move all IPMI configs into machine.
 - [ ] Support multiple network interfaces.
-- [ ] Authentication (LDAP?).
+- [ ] Authentication (LDAP? OAUTH?).
+- [ ] Checkout/expiration system.
 - [X] TLS.
